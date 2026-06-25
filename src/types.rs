@@ -207,25 +207,22 @@ pub struct VimLesson {
     pub key: &'static str,
     pub description: &'static str,
     pub example: &'static str,
+    pub challenge: &'static str,
 }
 
 pub fn all_lessons() -> Vec<VimLesson> {
     vec![
-        VimLesson { key: "h", description: "Move LEFT", example: "Press h to move west" },
-        VimLesson { key: "j", description: "Move DOWN", example: "Press j to move south" },
-        VimLesson { key: "k", description: "Move UP", example: "Press k to move north" },
-        VimLesson { key: "l", description: "Move RIGHT", example: "Press l to move east" },
-        VimLesson { key: "w", description: "Jump WORD forward", example: "w skips forward quickly" },
-        VimLesson { key: "b", description: "Jump WORD backward", example: "b goes back a word" },
-        VimLesson { key: "e", description: "End of WORD", example: "e lands on word end" },
-        VimLesson { key: "0", description: "Start of LINE", example: "0 teleports to row start" },
-        VimLesson { key: "$", description: "End of LINE", example: "$ teleports to row end" },
-        VimLesson { key: "gg", description: "Go to TOP", example: "gg jumps to top of screen" },
-        VimLesson { key: "G", description: "Go to BOTTOM", example: "G jumps to bottom" },
-        VimLesson { key: "f", description: "FIND char on line", example: "f finds a tile ahead" },
-        VimLesson { key: "H", description: "High (top of screen)", example: "H moves to top area" },
-        VimLesson { key: "M", description: "Middle of screen", example: "M centers vertically" },
-        VimLesson { key: "L", description: "Low (bottom of screen)", example: "L jumps to bottom area" },
+        VimLesson { key: "w", description: "Jump WORD forward", example: "Press w to move to next word", challenge: "What key jumps forward one word?" },
+        VimLesson { key: "b", description: "Jump WORD backward", example: "b goes back a word", challenge: "What key jumps backward one word?" },
+        VimLesson { key: "e", description: "End of WORD", example: "e lands on word end", challenge: "What key moves to end of current word?" },
+        VimLesson { key: "0", description: "Start of LINE", example: "0 teleports to row start", challenge: "What key moves to start of line?" },
+        VimLesson { key: "$", description: "End of LINE", example: "$ teleports to row end", challenge: "What key moves to end of line?" },
+        VimLesson { key: "gg", description: "Go to TOP", example: "gg jumps to top of screen", challenge: "What keys jump to top of file?" },
+        VimLesson { key: "G", description: "Go to BOTTOM", example: "G jumps to bottom", challenge: "What key jumps to bottom of file?" },
+        VimLesson { key: "f", description: "FIND char on line", example: "f finds a tile ahead", challenge: "What key finds a character ahead on line?" },
+        VimLesson { key: "H", description: "High (top of screen)", example: "H moves to top area", challenge: "What key moves to top of screen?" },
+        VimLesson { key: "M", description: "Middle of screen", example: "M centers vertically", challenge: "What key moves to middle of screen?" },
+        VimLesson { key: "L", description: "Low (bottom of screen)", example: "L jumps to bottom area", challenge: "What key moves to bottom of screen?" },
     ]
 }
 
@@ -235,6 +232,7 @@ pub enum GameScreen {
     Playing,
     LevelUp,
     LessonPopup(usize), // index into all_lessons
+    VimChallenge(usize, String), // lesson index, player input so far
     GameOver,
     Victory,
     Help,
@@ -278,6 +276,21 @@ impl Map {
             self.tiles[y][x],
             Tile::Floor | Tile::Door(true) | Tile::Stairs | Tile::Grass | Tile::Torch | Tile::Exit
         )
+    }
+
+    pub fn reveal_area(&mut self, cy: usize, cx: usize, radius: usize) {
+        let r = radius as i32;
+        for dy in -r..=r {
+            for dx in -r..=r {
+                if dx * dx + dy * dy <= r * r {
+                    let ny = cy as i32 + dy;
+                    let nx = cx as i32 + dx;
+                    if ny >= 0 && nx >= 0 && ny < self.height as i32 && nx < self.width as i32 {
+                        self.explored[ny as usize][nx as usize] = true;
+                    }
+                }
+            }
+        }
     }
 
     pub fn update_fov(&mut self, py: usize, px: usize, radius: usize) {

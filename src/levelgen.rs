@@ -55,7 +55,17 @@ pub fn generate_level(level_num: u32, rng: &mut ThreadRng) -> Level {
         }
     }
 
-    let player_start = rooms[0].center();
+    let map_center = (height / 2, width / 2);
+    let player_room_idx = rooms.iter().enumerate()
+        .min_by_key(|(_, r)| {
+            let (cy, cx) = r.center();
+            let dy = cy as i32 - map_center.0 as i32;
+            let dx = cx as i32 - map_center.1 as i32;
+            dy * dy + dx * dx
+        })
+        .map(|(i, _)| i)
+        .unwrap_or(0);
+    let player_start = rooms[player_room_idx].center();
 
     // Place stairs/exit in last room
     let last_center = rooms.last().unwrap().center();
@@ -65,10 +75,12 @@ pub fn generate_level(level_num: u32, rng: &mut ThreadRng) -> Level {
         map.set(last_center.0, last_center.1, Tile::Exit);
     }
 
-    // Add torches
-    for room in &rooms {
-        if rng.gen_bool(0.4) {
-            map.set(room.y + 1, room.x + 1, Tile::Torch);
+    // Add torches — more spread for fog-of-war gameplay
+    for room in rooms.iter().skip(1) {
+        if rng.gen_bool(0.6) {
+            let ty = rng.gen_range(room.y + 1..room.y + room.h - 1);
+            let tx = rng.gen_range(room.x + 1..room.x + room.w - 1);
+            map.set(ty, tx, Tile::Torch);
         }
     }
 
@@ -115,20 +127,20 @@ pub fn generate_level(level_num: u32, rng: &mut ThreadRng) -> Level {
         if rng.gen_bool(0.5) {
             let iy = rng.gen_range(room.y + 1..room.y + room.h - 1);
             let ix = rng.gen_range(room.x + 1..room.x + room.w - 1);
-            let item = match rng.gen_range(0..6u32) {
-                0 => Item::health_potion((iy, ix)),
-                1 => Item::gold((iy, ix), rng.gen_range(5..25)),
-                2 => Item::sword((iy, ix)),
-                3 => Item::shield((iy, ix)),
-                4 => Item::key((iy, ix)),
-                _ => Item::scroll((iy, ix)),
+            let item = match rng.gen_range(0..8u32) {
+                0 | 1 => Item::health_potion((iy, ix)),
+                2 => Item::gold((iy, ix), rng.gen_range(5..25)),
+                3 => Item::sword((iy, ix)),
+                4 => Item::shield((iy, ix)),
+                5 | 6 | 7 => Item::key((iy, ix)),
+                _ => Item::key((iy, ix)),
             };
             items.push(item);
         }
     }
-    // Always put a scroll in a random room to teach vim
-    if rng.gen_bool(0.6) && rooms.len() > 2 {
-        let room = &rooms[rng.gen_range(1..rooms.len())];
+    // One scroll per level, placed in a far room to require exploration
+    if rooms.len() > 2 {
+        let room = &rooms[rooms.len() - 2]; // second-to-last room (near stairs)
         let iy = room.y + room.h / 2;
         let ix = room.x + room.w / 2;
         items.push(Item::scroll((iy, ix)));

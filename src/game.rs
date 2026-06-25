@@ -40,7 +40,7 @@ impl GameState {
             viewport_h: 28,
         };
 
-        state.map.update_fov(state.player.pos.0, state.player.pos.1, 8);
+        state.map.update_fov(state.player.pos.0, state.player.pos.1, 4);
         state.push_log("⚔  Welcome to VimQuest! Use hjkl to move.".to_string());
         state.push_log("📜 Find scrolls to learn powerful Vim motions!".to_string());
         state.center_camera();
@@ -91,11 +91,17 @@ impl GameState {
                 false
             }
             Tile::Door(false) => {
-                self.map.set(ny, nx, Tile::Door(true));
-                self.push_log("🚪 You open the door.".to_string());
-                self.player.pos = (ny, nx);
-                self.finish_move();
-                true
+                if self.player.keys > 0 {
+                    self.player.keys -= 1;
+                    self.map.set(ny, nx, Tile::Door(true));
+                    self.push_log("🚪 You unlock the door with a key.".to_string());
+                    self.player.pos = (ny, nx);
+                    self.finish_move();
+                    true
+                } else {
+                    self.push_log("🔒 Door is locked! You need a key.".to_string());
+                    false
+                }
             }
             Tile::Stairs => {
                 self.push_log("🪜 You descend the stairs...".to_string());
@@ -108,6 +114,12 @@ impl GameState {
             }
             _ => {
                 self.player.pos = (ny, nx);
+                // Torch ('*') = reveals fog in large radius
+                if matches!(self.map.get(ny, nx), Tile::Torch) {
+                    self.map.set(ny, nx, Tile::Floor); // consume it
+                    self.map.reveal_area(ny, nx, 12);
+                    self.push_log("🔥 Torch lit! The fog recedes...".to_string());
+                }
                 self.pick_up_items();
                 self.finish_move();
                 true
@@ -116,7 +128,7 @@ impl GameState {
     }
 
     fn finish_move(&mut self) {
-        self.map.update_fov(self.player.pos.0, self.player.pos.1, 8);
+        self.map.update_fov(self.player.pos.0, self.player.pos.1, 4);
         self.center_camera();
         self.enemies_act();
         self.turn += 1;
@@ -233,16 +245,9 @@ impl GameState {
                     self.scrolls_read += 1;
                     let lessons = all_lessons();
                     let lesson_idx = (self.scrolls_read as usize - 1).min(lessons.len() - 1);
-                    let lesson = &lessons[lesson_idx];
-                    if !self.player.vim_lessons_learned.contains(&lesson.key.to_string()) {
-                        self.player.vim_lessons_learned.push(lesson.key.to_string());
-                    }
-                    self.push_log(format!(
-                        "📜 You read a scroll and learn: '{}' - {}",
-                        lesson.key, lesson.description
-                    ));
+                    self.push_log("📜 A scroll! Answer the challenge to learn the motion.".to_string());
                     self.pending_lesson = Some(lesson_idx);
-                    self.screen = GameScreen::LessonPopup(lesson_idx);
+                    self.screen = GameScreen::VimChallenge(lesson_idx, String::new());
                 }
             }
         }
@@ -277,7 +282,7 @@ impl GameState {
         self.enemies = level.enemies;
         self.items = level.items;
 
-        self.map.update_fov(self.player.pos.0, self.player.pos.1, 8);
+        self.map.update_fov(self.player.pos.0, self.player.pos.1, 4);
         self.center_camera();
 
         if self.current_level == 5 {

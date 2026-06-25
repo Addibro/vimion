@@ -100,6 +100,55 @@ fn run(terminal: &mut render::Term) -> io::Result<()> {
                     }
                 }
 
+                GameScreen::VimChallenge(idx, ref input) => {
+                    let idx = *idx;
+                    let mut input = input.clone();
+                    let lessons = crate::types::all_lessons();
+                    let answer = lessons[idx.min(lessons.len() - 1)].key;
+
+                    match key.code {
+                        KeyCode::Esc => {
+                            state.push_log("❌ Challenge abandoned. Scroll wasted!".to_string());
+                            state.screen = GameScreen::Playing;
+                        }
+                        KeyCode::Backspace => {
+                            input.pop();
+                            state.screen = GameScreen::VimChallenge(idx, input);
+                        }
+                        KeyCode::Enter => {
+                            if input == answer {
+                                let lesson = &lessons[idx.min(lessons.len() - 1)];
+                                if !state.player.vim_lessons_learned.contains(&lesson.key.to_string()) {
+                                    state.player.vim_lessons_learned.push(lesson.key.to_string());
+                                }
+                                state.push_log(format!("✅ Correct! Learned '{}' — {}", lesson.key, lesson.description));
+                                state.screen = GameScreen::LessonPopup(idx);
+                            } else {
+                                state.push_log("❌ Wrong answer! Scroll crumbles to dust.".to_string());
+                                state.screen = GameScreen::Playing;
+                            }
+                        }
+                        KeyCode::Char(c) => {
+                            input.push(c);
+                            // Auto-submit single char answers (except 'g' which could be 'gg')
+                            if input == answer && answer != "gg" {
+                                let lesson = &lessons[idx.min(lessons.len() - 1)];
+                                if !state.player.vim_lessons_learned.contains(&lesson.key.to_string()) {
+                                    state.player.vim_lessons_learned.push(lesson.key.to_string());
+                                }
+                                state.push_log(format!("✅ Correct! Learned '{}' — {}", lesson.key, lesson.description));
+                                state.screen = GameScreen::LessonPopup(idx);
+                            } else if input.len() >= answer.len() && input != answer && answer != "gg" {
+                                state.push_log("❌ Wrong answer! Scroll crumbles to dust.".to_string());
+                                state.screen = GameScreen::Playing;
+                            } else {
+                                state.screen = GameScreen::VimChallenge(idx, input);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+
                 GameScreen::Help => {
                     if matches!(key.code, KeyCode::Char('?') | KeyCode::Esc) {
                         state.screen = GameScreen::Playing;
